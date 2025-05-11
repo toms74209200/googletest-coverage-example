@@ -1,0 +1,60 @@
+name: Job - Test
+
+on:
+  workflow_call:
+    inputs:
+      with-coverage:
+        description: 'Run with coverage'
+        required: false
+        default: false
+        type: boolean
+
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install GoogleTest
+        run: |
+          curl -sSL -O https://github.com/google/googletest/releases/download/v${GOOGLE_TEST_VERSION}/googletest-${GOOGLE_TEST_VERSION}.tar.gz
+          tar -xzf googletest-${GOOGLE_TEST_VERSION}.tar.gz
+          cd googletest-${GOOGLE_TEST_VERSION}
+          mkdir build
+          cd build
+          cmake ..
+          make
+          sudo make install
+        env:
+          GOOGLE_TEST_VERSION: 1.17.0
+      - name: Build
+        run: make test
+
+      - if: ${{ inputs.with-coverage }}
+        uses: actions/setup-python@v5
+      - if: ${{ inputs.with-coverage }}
+        name: Install gcovr
+        run: pip install gcovr
+      - if: ${{ inputs.with-coverage }}
+        name: Create coverage report
+        run: |
+          mkdir -p coverage
+          gcovr --html-details coverage/coverage.html
+          gcovr -o coverage.txt
+      - if: ${{ inputs.with-coverage }}
+        name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage
+      - if: ${{ inputs.with-coverage }}
+        name: Output coverage report
+        run: |
+          cat << EOF > $GITHUB_STEP_SUMMARY
+          # Test Coverage Report
+
+          ## File Coverage Details
+          \`\`\`
+          $(cat coverage.txt)
+          \`\`\`
+          EOF
